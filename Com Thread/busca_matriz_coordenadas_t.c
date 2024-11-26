@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <omp.h>
 
-#define ROWS 1000
-#define COLS 1000
+#define ROWS 500
+#define COLS 500
 #define MAX_WORDS 100
 #define MAX_WORD_LENGTH 100
 

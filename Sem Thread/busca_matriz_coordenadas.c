@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <omp.h>
 
-#define ROWS 500
-#define COLS 500
+#define ROWS 1000
+#define COLS 1000
 #define MAX_WORDS 100
 #define MAX_WORD_LENGTH 100
 
@@ -27,10 +27,8 @@ bool buscarPalavraCobrinha(const char matriz[ROWS][COLS], int rows, int cols, co
 
                 for (k = 0; k < len; k++) {
                     // Ajuste de coordenadas circulares
-                    if (x < 0) x = rows - 1;
-                    if (x >= rows) x = 0;
-                    if (y < 0) y = cols - 1;
-                    if (y >= cols) y = 0;
+                    x = (x + rows) % rows;
+                    y = (y + cols) % cols;
 
                     if (matriz[x][y] != word[k]) break;
 
@@ -78,7 +76,7 @@ int main() {
     const int wordCount = sizeof(words) / sizeof(words[0]);
 
     // Carregar a matriz do arquivo
-    if (!carregarMatriz("exemplo_palavras2.txt", matriz)) {
+    if (!carregarMatriz("../exemplo_palavras2.txt", matriz)) {
         return 1;
     }
 
@@ -88,53 +86,41 @@ int main() {
     int foundThreads[MAX_WORDS]; // Armazena qual thread encontrou cada palavra
     int foundCount = 0;
 
-    omp_set_num_threads(4); // Configuração do número de threads
+    double start_time = omp_get_wtime(); // Início da medição de tempo
 
-    // Paralelizando a busca
-    #pragma omp parallel
-    {
-        // Variáveis locais para evitar condição de corrida
-        char localFoundWords[MAX_WORDS][MAX_WORD_LENGTH];
-        int localPaths[MAX_WORDS][MAX_WORD_LENGTH][2];
-        int localPathLengths[MAX_WORDS];
-        int localFoundThreads[MAX_WORDS];
-        int localFoundCount = 0;
+    // Buscando as palavras sequencialmente
+    for (int i = 0; i < wordCount; i++) {
+        int path[MAX_WORD_LENGTH][2];
 
-        #pragma omp for nowait
-        for (int i = 0; i < wordCount; i++) {
-            int path[MAX_WORD_LENGTH][2];
-            if (buscarPalavraCobrinha(matriz, ROWS, COLS, words[i], path)) {
-                int thread_id = omp_get_thread_num();
-                strcpy(localFoundWords[localFoundCount], words[i]);
-                localPathLengths[localFoundCount] = strlen(words[i]);
-                memcpy(localPaths[localFoundCount], path, sizeof(path));
-                localFoundThreads[localFoundCount] = thread_id; // Salva o identificador da thread
-                localFoundCount++;
-            }
-        }
+        // Captura do tempo inicial para a palavra
+        double thread_start_time = omp_get_wtime();
+        
+        if (buscarPalavraCobrinha(matriz, ROWS, COLS, words[i], path)) {
+            strcpy(foundWords[foundCount], words[i]);
+            pathLengths[foundCount] = strlen(words[i]);
+            memcpy(paths[foundCount], path, sizeof(path));
+            foundThreads[foundCount] = -1; // Indicador de que foi encontrado sequencialmente
+            foundCount++;
 
-        // Mesclando resultados
-        #pragma omp critical
-        {
-            for (int i = 0; i < localFoundCount; i++) {
-                strcpy(foundWords[foundCount], localFoundWords[i]);
-                pathLengths[foundCount] = localPathLengths[i];
-                memcpy(paths[foundCount], localPaths[i], sizeof(localPaths[i]));
-                foundThreads[foundCount] = localFoundThreads[i]; // Salva a thread globalmente
-                foundCount++;
-            }
+            // Exibindo o tempo que a busca levou
+            printf("Palavra '%s' encontrada em %.6f segundos.\n", foundWords[foundCount-1], omp_get_wtime() - thread_start_time);
         }
     }
+
+    double end_time = omp_get_wtime(); // Fim da medição de tempo
 
     // Exibir resultados
     printf("\nResultados:\n");
     for (int i = 0; i < foundCount; i++) {
-        printf("Palavra '%s' encontrada pela thread %d nas coordenadas: ", foundWords[i], foundThreads[i]);
+        printf("Palavra '%s' encontrada nas coordenadas: ", foundWords[i]);
         for (int k = 0; k < pathLengths[i]; k++) {
             printf("(%d, %d) ", paths[i][k][0], paths[i][k][1]);
         }
         printf("\n");
     }
+
+    // Exibir tempo total de execução
+    printf("\nTempo total de execução: %.6f segundos\n", end_time - start_time);
 
     return 0;
 }
