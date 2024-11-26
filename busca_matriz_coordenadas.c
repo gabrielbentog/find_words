@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <omp.h>
 
-#define ROWS 30
-#define COLS 30
+#define ROWS 500
+#define COLS 500
 #define MAX_WORDS 100
 #define MAX_WORD_LENGTH 100
 
@@ -55,37 +56,9 @@ bool searchWordSnakeWithPath(char matrix[ROWS][COLS], int rows, int cols, const 
     return false;
 }
 
-// Função para exibir a matriz com destaques
-void printMatrixWithHighlights(char matrix[ROWS][COLS], int paths[MAX_WORDS][MAX_WORD_LENGTH][2], int pathLengths[], int foundCount) {
-    // Array para contar quantos destaques cada posição tem
-    int highlightCount[ROWS][COLS] = {{0}};
-
-    // Contabiliza os destaques para cada posição
-    for (int w = 0; w < foundCount; w++) {
-        for (int k = 0; k < pathLengths[w]; k++) {
-            int x = paths[w][k][0];
-            int y = paths[w][k][1];
-            highlightCount[x][y]++;
-        }
-    }
-
-    // Exibe a matriz, com base nos destaques
-    for (int i = 0; i < ROWS; i++) {
-        for (int j = 0; j < COLS; j++) {
-            // Se a posição (i, j) tem destaque
-            if (highlightCount[i][j] > 0) {
-                printf("\033[1;31m%c\033[0m ", matrix[i][j]); // Destacar em vermelho
-            } else {
-                printf("%c ", matrix[i][j]); // Imprimir normalmente
-            }
-        }
-        printf("\n");
-    }
-}
-
 int main() {
     char matrix[ROWS][COLS];
-    FILE* file = fopen("exemplo_palavras.txt", "r");
+    FILE* file = fopen("exemplo_palavras2.txt", "r");
 
     if (file == NULL) {
         perror("Erro ao abrir o arquivo");
@@ -111,15 +84,23 @@ int main() {
     int pathLengths[MAX_WORDS];
     int foundCount = 0;
 
-    // Procurando por cada palavra na matriz
+    // Definindo o número de threads que o OpenMP deve usar
+    omp_set_num_threads(4); // Define 4 threads, você pode alterar esse número conforme necessário
+
+    // Paralelizando a busca das palavras na matriz
+    #pragma omp parallel for
     for (int i = 0; i < wordCount; i++) {
         int path[MAX_WORD_LENGTH][2]; // Caminho da palavra na matriz
-        if (searchWordSnakeWithPath(matrix, ROWS, COLS, words[i], path)) {
-            // Salva a palavra encontrada
-            strcpy(foundWords[foundCount], words[i]);
-            pathLengths[foundCount] = strlen(words[i]);
-            memcpy(paths[foundCount], path, sizeof(path));
-            foundCount++;
+        bool found = searchWordSnakeWithPath(matrix, ROWS, COLS, words[i], path);
+
+        if (found) {
+            #pragma omp critical
+            {
+                strcpy(foundWords[foundCount], words[i]);
+                pathLengths[foundCount] = strlen(words[i]);
+                memcpy(paths[foundCount], path, sizeof(path));
+                foundCount++;
+            }
         }
     }
 
@@ -132,10 +113,6 @@ int main() {
         }
         printf("\n");
     }
-
-    // Exibir a matriz com destaques
-    printf("\nMatriz com palavras destacadas:\n");
-    printMatrixWithHighlights(matrix, paths, pathLengths, foundCount);
 
     return 0;
 }
